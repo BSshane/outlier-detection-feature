@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>YOLO 实时目标检测</title>
+    <style>
+        body {
+            text-align: center;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .header {
+            background-color: #333;
+            color: white;
+            padding: 10px;
+        }
+        .main-content {
+            display: flex;
+            flex: 1;
+            padding: 10px;
+        }
+        .left-panel {
+            flex: 1;
+            padding: 10px;
+        }
+        .right-panel {
+            flex: 1;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+        .video-container {
+            border: 1px solid #ddd;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            background-color: #f9f9f9;
+        }
+        .controls {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+        }
+        .input-group {
+            margin-bottom: 10px;
+        }
+        .input-group label {
+            display: inline-block;
+            width: 100px;
+            text-align: right;
+            margin-right: 10px;
+        }
+        .input-group input {
+            width: 150px;
+            padding: 5px;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #status {
+            margin-top: 10px;
+            color: #333;
+        }
+        .risk-pool {
+            margin-top: 20px;
+            flex: 1;
+            overflow: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .risk-pool h3 {
+            background-color: #4285f4;
+            color: white;
+            margin: 0;
+            padding: 10px;
+        }
+        .risk-list {
+            max-height: 300px;
+            overflow-y: auto;
+            text-align: left;
+        }
+        .risk-item {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        .risk-item.new {
+            background-color: #fff3cd;
+            animation: highlight 1s ease-in-out;
+        }
+        .risk-item.processed {
+            background-color: #d4edda;
+        }
+        .process-status {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            text-align: left;
+        }
+        .process-status h3 {
+            background-color: #f4b400;
+            color: white;
+            margin: 0;
+            padding: 10px;
+        }
+        .status-item {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        .status-item:last-child {
+            border-bottom: none;
+        }
+        .status-item.running {
+            color: #28a745;
+        }
+        .status-item.stopped {
+            color: #dc3545;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes highlight {
+            0% { background-color: #fff3cd; }
+            50% { background-color: #ffeeba; }
+            100% { background-color: #fff3cd; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>YOLO 实时目标检测与风险监控系统</h1>
+    </div>
+
+    <div class="main-content">
+        <div class="left-panel">
+            <div class="video-container">
+                <img id="video" src="/video_feed" width="100%" alt="实时检测画面">
+            </div>
+
+            <div class="controls">
+                <h3>设置危险区域</h3>
+                <div class="input-group">
+                    <label for="x1">点1 x 坐标:</label>
+                    <input type="number" id="x1" name="x1" value="100">
+                    <label for="y1">点1 y 坐标:</label>
+                    <input type="number" id="y1" name="y1" value="100">
+                </div>
+                <div class="input-group">
+                    <label for="x2">点2 x 坐标:</label>
+                    <input type="number" id="x2" name="x2" value="700">
+                    <label for="y2">点2 y 坐标:</label>
+                    <input type="number" id="y2" name="y2" value="700">
+                </div>
+                <button onclick="setDangerZone()">设置危险区域</button>
+                <div id="status"></div>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="risk-pool">
+                <h3>风险池 <span id="risk-count">(0)</span></h3>
+                <div class="risk-list" id="risk-list">
+                    <!-- 风险信息将在这里动态显示 -->
+                </div>
+            </div>
+
+            <div class="process-status">
+                <h3>进程状态</h3>
+                <div class="status-item">
+                    <strong>读者进程:</strong>
+                    <span id="reader-status" class="status-item stopped">未运行</span>
+                </div>
+                <div class="status-item">
+                    <strong>风险队列大小:</strong>
+                    <span id="queue-size">-</span>
+                </div>
+                <div class="status-item">
+                    <strong>活跃进程:</strong>
+                    <span id="active-processes">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function setDangerZone() {
+            const x1 = document.getElementById('x1').value;
+            const y1 = document.getElementById('y1').value;
+            const x2 = document.getElementById('x2').value;
+            const y2 = document.getElementById('y2').value;
+
+            if (!x1 || !y1 || !x2 || !y2) {
+                document.getElementById('status').textContent = '请填写完整的坐标信息';
+                return;
+            }
+
+            document.getElementById('status').textContent = '正在设置危险区域...';
+
+            fetch('/set_danger_zone', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    x1: parseInt(x1),
+                    y1: parseInt(y1),
+                    x2: parseInt(x2),
+                    y2: parseInt(y2)
+                })
+            })
+           .then(response => response.json())
+           .then(data => {
+                document.getElementById('status').textContent = data.message;
+                // 刷新视频流以立即应用新的危险区域
+                const videoElement = document.getElementById('video');
+                const timestamp = new Date().getTime();
+                videoElement.src = `/video_feed?timestamp=${timestamp}`;
+
+                // 3秒后清除状态消息
+                setTimeout(() => {
+                    document.getElementById('status').textContent = '';
+                }, 3000);
+            })
+           .catch(error => {
+                document.getElementById('status').textContent = '设置危险区域时出错: ' + error.message;
+            });
+        }
+
+        // 存储已显示的风险ID，用于避免重复显示
+        const displayedRisks = new Set();
+
+        // 获取风险池数据
+        function updateRiskPool() {
+            fetch('/get_risk_pool')
+               .then(response => response.json())
+               .then(data => {
+                    const riskList = document.getElementById('risk-list');
+                    const riskCount = document.getElementById('risk-count');
+
+                    // 更新风险计数
+                    riskCount.textContent = `(${data.length})`;
+
+                    // 清空现有列表
+                    riskList.innerHTML = '';
+
+                    // 添加新的风险项
+                    data.forEach(risk => {
+                        const riskId = risk.timestamp + risk.message;
+                        const riskItem = document.createElement('div');
+                        riskItem.className = `risk-item ${risk.processed? 'processed' : 'new'}`;
+
+                        // 格式化时间
+                        const date = new Date(risk.timestamp);
+                        const formattedTime = date.toLocaleTimeString();
+
+                        riskItem.innerHTML = `
+                            <div><strong>${formattedTime}</strong></div>
+                            <div>${risk.message}</div>
+                            <div class="risk-status">
+                                ${risk.processed?
+                                  '<span style="color: green;">已处理</span>' :
+                                  '<span style="color: orange;">待处理</span>'}
+                            </div>
+                        `;
+
+                        riskList.appendChild(riskItem);
+                    });
+                })
+               .catch(error => {
+                    console.error('获取风险池数据失败:', error);
+                });
+        }
+
+        // 获取进程状态
+        function updateProcessStatus() {
+            fetch('/get_process_status')
+               .then(response => response.json())
+               .then(data => {
+                    const readerStatus = document.getElementById('reader-status');
+                    const queueSize = document.getElementById('queue-size');
+                    const activeProcesses = document.getElementById('active-processes');
+
+                    // 更新读者进程状态
+                    readerStatus.textContent = data.reader_process? '运行中' : '未运行';
+                    readerStatus.className = `status-item ${data.reader_process? 'running' : 'stopped'}`;
+
+                    // 更新队列大小
+                    queueSize.textContent = data.queue_size;
+
+                    // 更新活跃进程
+                    if (data.active_processes.length > 0) {
+                        const processesText = data.active_processes.map(p =>
+                            `${p.name} (PID: ${p.pid}, ${p.is_alive? '运行中' : '已停止'})`
+                        ).join(', ');
+                        activeProcesses.textContent = processesText;
+                    } else {
+                        activeProcesses.textContent = '无';
+                    }
+                })
+               .catch(error => {
+                    console.error('获取进程状态失败:', error);
+                });
+        }
+
+        // 定时更新风险池和进程状态
+        setInterval(updateRiskPool, 1000);
+        setInterval(updateProcessStatus, 3000);
+
+        // 初始加载
+        updateRiskPool();
+        updateProcessStatus();
+    </script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>人体姿态识别与跌倒检测系统</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Bootstrap 5 样式 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f3f4f6;
+        }
+        .video-container {
+            text-align: center;
+            margin-top: 30px;
+        }
+        .video-frame {
+            border: 5px solid #007bff;
+            border-radius: 12px;
+            width: 960px;
+            max-width: 100%;
+        }
+        .status-box {
+            margin-top: 20px;
+        }
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">🧍 姿态识别 · 跌倒检测系统</a>
+            <div class="d-flex text-light">
+                <span id="time" class="me-3"></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 视频展示区 -->
+    <div class="container video-container">
+        <h3 class="text-center mb-4">实时视频分析</h3>
+        <img id="video-stream" src="/video_feed" class="video-frame" alt="视频加载失败" onerror="handleError(this)">
+        <div class="status-box text-center text-muted mt-3" id="status-info">
+            加载中...
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        function updateClock() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+            document.getElementById("time").textContent = timeStr;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        function handleError(img) {
+            img.src = '';
+            document.getElementById("status-info").innerText = "🚫 无法加载视频流，请检查后端服务或 RTMP 推流";
+            document.getElementById("status-info").classList.add("text-danger");
+        }
+    </script>
+</body>
+</html>

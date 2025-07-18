@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音频危险检测</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .panel {
+            margin: 10px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        input {
+            width: 70%;
+            padding: 8px;
+            margin-right: 5px;
+        }
+        button {
+            padding: 8px 15px;
+            background: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        #stopBtn {
+            background: #ea4335;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 10px;
+            min-height: 60px;
+        }
+        .danger {
+            color: red;
+            font-weight: bold;
+        }
+        .error {
+            color: orange;
+        }
+        .history-panel {
+            display: flex;
+            gap: 20px;
+        }
+        .history-box {
+            flex: 1;
+            border: 1px solid #eee;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .history-item {
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .warning-box {
+            background-color: #fff8f8;
+        }
+    </style>
+</head>
+<body>
+    <h1>音频危险检测</h1>
+
+    <div class="panel">
+        <input type="text" id="rtmpUrl" placeholder="输入流ID(如1)或完整RTMP地址">
+        <button id="startBtn">开始检测</button>
+        <button id="stopBtn" disabled>停止检测</button>
+    </div>
+
+    <div class="panel">
+        <h3>实时检测结果</h3>
+        <div id="result" class="result">等待开始检测...</div>
+    </div>
+
+    <div class="panel history-panel">
+        <div class="history-box">
+            <h3>最近5条记录</h3>
+            <div id="recentHistory"></div>
+        </div>
+        <div class="history-box warning-box">
+            <h3>所有警告记录</h3>
+            <div id="warningHistory"></div>
+        </div>
+    </div>
+
+    <script>
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const rtmpUrl = document.getElementById('rtmpUrl');
+        const resultDiv = document.getElementById('result');
+        const recentHistoryDiv = document.getElementById('recentHistory');
+        const warningHistoryDiv = document.getElementById('warningHistory');
+
+        let isRunning = false;
+        let checkInterval;
+        let history = [];
+        let warnings = [];
+
+        startBtn.addEventListener('click', async () => {
+            if (!rtmpUrl.value) {
+                alert('请输入RTMP地址');
+                return;
+            }
+
+            try {
+                const response = await fetch('/start', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({rtmp_url: rtmpUrl.value})
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                isRunning = true;
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                resultDiv.innerHTML = '检测已启动...';
+
+                // 清空历史记录
+                history = [];
+                warnings = [];
+                updateHistoryDisplays();
+
+                // 每1秒检查一次结果
+                checkInterval = setInterval(checkResult, 1000);
+
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">错误: ${error.message}</span>`;
+            }
+        });
+
+        stopBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch('/stop', {method: 'POST'});
+                const data = await response.json();
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                clearInterval(checkInterval);
+                isRunning = false;
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                resultDiv.innerHTML = '检测已停止';
+
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">错误: ${error.message}</span>`;
+            }
+        });
+
+        function updateHistoryDisplays() {
+            // 更新最近5条记录
+            recentHistoryDiv.innerHTML = history.slice(0, 5).map(item => `
+                <div class="history-item">
+                    <div>[${item.timestamp}] ${item.label} (${(item.score * 100).toFixed(1)}%)</div>
+                    ${item.is_danger ? '<div class="danger">⚠️ 危险声音</div>' : ''}
+                </div>
+            `).join('');
+
+            // 更新所有警告记录
+            warningHistoryDiv.innerHTML = warnings.map(item => `
+                <div class="history-item">
+                    <div>[${item.timestamp}]</div>
+                    <div class="danger">${item.label} (${(item.score * 100).toFixed(1)}%)</div>
+                </div>
+            `).join('');
+        }
+
+        async function checkResult() {
+            try {
+                const response = await fetch('/analyze');
+                const data = await response.json();
+
+                if (data.error) {
+                    resultDiv.innerHTML = `<span class="error">${data.error}</span>`;
+                    return;
+                }
+
+                // 添加到历史记录
+                history.unshift(data);
+                if (data.is_danger) {
+                    warnings.unshift(data);
+                }
+
+                // 更新显示
+                updateHistoryDisplays();
+
+                const dangerClass = data.is_danger ? 'danger' : '';
+                resultDiv.innerHTML = `
+                    <div>时间: ${data.timestamp}</div>
+                    <div class="${dangerClass}">检测到: ${data.label} (${(data.score * 100).toFixed(1)}%)</div>
+                    ${data.is_danger ? '<div class="danger">⚠️ 危险声音警报!</div>' : ''}
+                `;
+
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">获取结果失败: ${error.message}</span>`;
+            }
+        }
+    </script>
+</body>
+</html>

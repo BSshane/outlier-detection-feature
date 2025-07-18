@@ -1,0 +1,1 @@
+http-server --cors -p 9081 .
