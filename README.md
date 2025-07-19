@@ -20,8 +20,8 @@
 │   │   └── data/                             # 人脸特征库
 │   │
 │   ├── Smart_Construction-master/            # 施工安全检测
-│   │   ├── detect.py                         # YOLOv5检测入口
-│   │   ├── area_detect.py                    # 危险区域分析
+│   │   ├── detect_sj.py                      # YOLOv5检测入口
+│   │   ├── app.py                            # flask启动入口
 │   │   └── utils/                            # 数据预处理工具
 │   │
 │   ├── Sound_monitor/                        # 声音检测
@@ -64,13 +64,14 @@
     5.  配置Jenkins的构建触发器(修改master/develop/feature时触发)
     6.  配置Jenkins的构造步骤(执行start.sh)
 3.  GetStream
+    前段入口../fot
 4.  FileGetter
     1.  运行start.bat
 5.  Daily
     1.  按照environment.yml配置好环境
     2.  运行cot_prompt.py
 6.  Sound_monitor
-    1.  在电脑上安装ffmpeg
+    1.  系统安装ffmpeg,如果是windows要配置相应环境变量
     2.  按照environment.yml配置好环境
     3.  运行backend.py
 7.  Dlib_face_recognition_from_camera
@@ -78,4 +79,8 @@
     2.  运行feature_GetAndConvert.py录入人脸信息.
     3.  运行app_cnn_..._.py(文件名最长的那个)启动服务.
 8.  Smart_Construction-master
+   使用原作者的requirements.txt环境，按需采用cuda加速模型检测
 9.  ism_person_openpose-master
+
+##关于服务器
+项目中有关服务器视频推拉流的地址已经弃用，请自行配置服务器
