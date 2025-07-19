@@ -82,5 +82,6 @@
    使用原作者的requirements.txt环境，按需采用cuda加速模型检测
 9.  ism_person_openpose-master
 
+
 ## 关于服务器
 项目中有关服务器视频推拉流的地址已经弃用，请自行配置服务器
